@@ -34,6 +34,11 @@ CloudKit retirement.
 
 ## Timeline
 
+- **2026-08-21:** Built the local shared sync foundation: a typed Worker/D1
+  API for six fresh domains, idempotent outbox push and cursor pull, semantic
+  Hub actions with audit/undo, a fail-closed Calorie connector, and the
+  multi-platform `PersonalSyncKit` package. Production resources remain
+  intentionally uncreated and undeployed.
 - **2026-08-21:** Created the repository and specified the shared Cloudflare
   sync foundation in GitHub issue #1.
 
@@ -44,9 +49,21 @@ CloudKit retirement.
 
 ## Features (shipped)
 
-- None yet.
+- **Sync protocol:** client-generated IDs, typed domain validation, mutation
+  idempotency, optimistic versions, deletion tombstones, ordered pull cursors,
+  device freshness, and atomic domain/change/event receipts.
+- **Domain services:** separate D1 tables and one semantic write action each for
+  Live, Journal, Habits, Setline, Kith, and Anchor.
+- **Hub surface:** Today aggregation, domain summaries, activity provenance,
+  additive action audit, and single-action undo.
+- **Calorie boundary:** service-binding-only connector with no Calorie table or
+  direct access to Calorie's existing D1.
+- **Native package:** Foundation-only Swift transport, typed JSON adapters,
+  durable mutation outbox, per-domain cursor persistence, and a sync
+  coordinator for iOS/iPadOS, macOS, and watchOS.
+- **Safety:** authenticated routes fail closed until the production verifier is
+  bound; local tests provide the only test-token mode.
 
 ## Work queue
 
 - [GitHub Issues](https://github.com/Significant-Hobbies/personal-platform/issues)
-

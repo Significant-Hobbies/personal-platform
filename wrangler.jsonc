@@ -1,0 +1,24 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "personal-platform",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-21",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "AUTH_MODE": "disabled",
+    "LOCAL_AUTH_TOKEN": "",
+    "LOCAL_AUTH_USER_ID": "",
+    "ALLOWED_ORIGINS": "https://sh.com,https://significanthobbies.com"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "personal-platform",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ]
+}
