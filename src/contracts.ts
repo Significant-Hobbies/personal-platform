@@ -172,8 +172,27 @@ export function validateDomainRecord(
         minutes: requireInteger(input.minutes, "record.minutes"),
         notes: optionalString(input.notes, "record.notes", 10_000),
       });
-    case "kith":
+    case "kith": {
+      const recordType = requireEnum(input.recordType, "record.recordType", [
+        "person",
+        "interaction",
+      ] as const);
+      if (recordType === "person") {
+        return compact({
+          recordType,
+          personId: requireString(input.personId, "record.personId", 128),
+          personName: requireString(input.personName, "record.personName", 240),
+          circle: requireString(input.circle, "record.circle", 80),
+          closeness: requireInteger(input.closeness, "record.closeness", 1),
+          hue: requireString(input.hue, "record.hue", 80),
+          birthday: optionalIsoDate(input.birthday, "record.birthday"),
+          howWeMet: optionalString(input.howWeMet, "record.howWeMet", 20_000),
+          standingNotes: optionalString(input.standingNotes, "record.standingNotes", 20_000),
+          createdAt: requireIsoDate(input.createdAt, "record.createdAt"),
+        });
+      }
       return compact({
+        recordType,
         personId: requireString(input.personId, "record.personId", 128),
         personName: requireString(input.personName, "record.personName", 240),
         kind: requireString(input.kind, "record.kind", 80),
@@ -181,6 +200,7 @@ export function validateDomainRecord(
         note: optionalString(input.note, "record.note", 20_000),
         followUpAt: optionalIsoDate(input.followUpAt, "record.followUpAt"),
       });
+    }
     case "anchor":
       return compact({
         title: requireString(input.title, "record.title", 240),

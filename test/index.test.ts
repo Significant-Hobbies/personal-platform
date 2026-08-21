@@ -215,6 +215,38 @@ describe("Personal Platform Worker", () => {
     });
   });
 
+  it("syncs Kith people as well as interactions", async () => {
+    const response = await api("/v1/sync/push", {
+      method: "POST",
+      body: JSON.stringify({
+        domain: "kith",
+        deviceId: "iphone",
+        mutations: [{
+          id: "person-rahul",
+          idempotencyKey: "kith-person-rahul-v1",
+          operation: "upsert",
+          baseVersion: 0,
+          occurredAt: "2026-08-21T06:00:00.000Z",
+          record: {
+            recordType: "person",
+            personId: "person-rahul",
+            personName: "Rahul",
+            circle: "friends",
+            closeness: 4,
+            hue: "clay",
+            createdAt: "2026-08-21T06:00:00.000Z",
+          },
+        }],
+      }),
+    });
+    expect(response.status).toBe(200);
+
+    const pull = await api("/v1/sync/pull?domain=kith&cursor=0");
+    const body = await pull.json<Record<string, unknown>>();
+    expect(JSON.stringify(body)).toContain('\"recordType\":\"person\"');
+    expect(JSON.stringify(body)).toContain('\"personName\":\"Rahul\"');
+  });
+
   it("does not fall back to Personal Platform D1 for Calorie", async () => {
     const response = await api("/v1/domains/calorie/summary");
     expect(response.status).toBe(503);

@@ -294,6 +294,7 @@ function actionRecord(
       };
     case "kith":
       return {
+        recordType: "interaction",
         personId: input.personId,
         personName: input.personName,
         kind: input.kind ?? "conversation",
