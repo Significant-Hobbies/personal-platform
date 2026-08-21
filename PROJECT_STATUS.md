@@ -34,6 +34,12 @@ legacy-data import, and immediate CloudKit retirement.
 
 ## Timeline
 
+- **2026-08-22:** Deployed the seven-domain read contracts, Live and Calorie
+  connectors, privacy projections, and read-only MCP implementation from exact
+  SHA `7b950a0d193af9d4b967a81c3bfedc0af36548ee` at 100% traffic. Production D1
+  has no pending migrations and health returns 200. The MCP bearer boundary
+  fails closed with 401; its Auth0 owner mapping remains intentionally inactive
+  until the production OAuth values are supplied.
 - **2026-08-21:** Added an explicit two-client Setline convergence check: a
   completed session pushed from an iPhone-origin device is accepted once,
   versioned, and pulled intact by a second client. All Worker integration tests
