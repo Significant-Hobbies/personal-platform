@@ -13,7 +13,7 @@ public struct PersonalPlatformConnection: Sendable {
         keychainService: String,
         supportDirectory: URL,
         deviceId: String,
-        platformURL: URL = URL(string: "https://personal-platform.sarthakagrawal.workers.dev")!,
+        platformURL: URL = URL(string: "https://personal-platform.sarthakagrawal927.workers.dev")!,
         identityURL: URL = URL(string: "https://significanthobbies.com")!
     ) throws {
         let identity = PersonalIdentityClient(
