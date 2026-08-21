@@ -72,6 +72,45 @@ export async function getCalorieToday(
   }
 }
 
+export async function getCalorieRecords(
+  request: Request,
+  env: Env,
+  user: AuthenticatedUser,
+  query: URLSearchParams,
+): Promise<Response> {
+  const start = query.get("start");
+  const end = query.get("end");
+  if (!start || !end) {
+    throw new HttpError(400, "invalid_range", "Calorie history requires start and end");
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end) || start > end) {
+    throw new HttpError(400, "invalid_range", "Choose a valid Calorie history range");
+  }
+  const upstream = new URL("/v1/personal/history", CALORIE_ORIGIN);
+  upstream.searchParams.set("start", start);
+  upstream.searchParams.set("end", end);
+  upstream.searchParams.set("timezone", String(env.OWNER_TIMEZONE || "UTC"));
+  for (const key of ["limit", "offset"]) {
+    const value = query.get(key);
+    if (value) upstream.searchParams.set(key, value);
+  }
+  const service = optionalFetcher(env, "CALORIE_SERVICE");
+  if (!service) {
+    throw new HttpError(
+      503,
+      "calorie_connector_unavailable",
+      "the Calorie service binding is not configured",
+    );
+  }
+  const headers = new Headers({
+    Accept: "application/json",
+    "X-Personal-User-Id": user.id,
+  });
+  const authorization = request.headers.get("Authorization");
+  if (authorization) headers.set("Authorization", authorization);
+  return service.fetch(upstream, { headers });
+}
+
 function unavailableSummary(reason: string) {
   return {
     domain: "calorie",

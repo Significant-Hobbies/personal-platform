@@ -78,6 +78,44 @@ public actor SyncVersionStore {
     }
 }
 
+public actor SyncFingerprintStore {
+    private let fileURL: URL
+    private var fingerprints: [PersonalDomain: [String: String]]
+
+    public init(fileURL: URL) throws {
+        self.fileURL = fileURL
+        if FileManager.default.fileExists(atPath: fileURL.path) {
+            fingerprints = try JSONDecoder().decode(
+                [PersonalDomain: [String: String]].self,
+                from: Data(contentsOf: fileURL)
+            )
+        } else {
+            fingerprints = [:]
+        }
+    }
+
+    public func fingerprint(for recordId: String, in domain: PersonalDomain) -> String? {
+        fingerprints[domain]?[recordId]
+    }
+
+    public func setFingerprint(
+        _ fingerprint: String,
+        for recordId: String,
+        in domain: PersonalDomain
+    ) throws {
+        fingerprints[domain, default: [:]][recordId] = fingerprint
+        try persist()
+    }
+
+    private func persist() throws {
+        try FileManager.default.createDirectory(
+            at: fileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try JSONEncoder().encode(fingerprints).write(to: fileURL, options: .atomic)
+    }
+}
+
 public actor SyncCursorStore {
     private let fileURL: URL
     private var cursors: [PersonalDomain: Int]
@@ -113,17 +151,20 @@ public actor SyncCoordinator {
     private let outbox: MutationOutbox
     private let cursors: SyncCursorStore
     private let versions: SyncVersionStore
+    private let fingerprints: SyncFingerprintStore
 
     public init(
         client: PersonalSyncClient,
         outbox: MutationOutbox,
         cursors: SyncCursorStore,
-        versions: SyncVersionStore
+        versions: SyncVersionStore,
+        fingerprints: SyncFingerprintStore
     ) {
         self.client = client
         self.outbox = outbox
         self.cursors = cursors
         self.versions = versions
+        self.fingerprints = fingerprints
     }
 
     public func synchronize(
@@ -141,7 +182,9 @@ public actor SyncCoordinator {
             )
             let acknowledged = Set(
                 pushed.results
-                    .filter { $0.status == "accepted" || $0.status == "duplicate" }
+                    .filter {
+                        $0.status == "accepted" || $0.status == "duplicate" || $0.status == "conflict"
+                    }
                     .map(\.idempotencyKey)
             )
             for result in pushed.results {
@@ -166,6 +209,11 @@ public actor SyncCoordinator {
             allChanges.append(contentsOf: page.changes)
             for change in page.changes {
                 try await versions.setVersion(change.version, for: change.id, in: domain)
+                try await fingerprints.setFingerprint(
+                    syncFingerprint(operation: change.operation, record: change.record),
+                    for: change.id,
+                    in: domain
+                )
             }
             nextCursor = page.cursor
             if !page.hasMore { break }

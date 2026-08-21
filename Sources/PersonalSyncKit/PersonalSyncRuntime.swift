@@ -38,6 +38,7 @@ public actor PersonalSyncRuntime {
     private let identity: PersonalIdentityClient
     private let outbox: MutationOutbox
     private let versions: SyncVersionStore
+    private let fingerprints: SyncFingerprintStore
     private let coordinator: SyncCoordinator
 
     public init(
@@ -56,11 +57,16 @@ public actor PersonalSyncRuntime {
             fileURL: supportDirectory.appending(path: "personal-sync-versions.json")
         )
         self.versions = versions
+        let fingerprints = try SyncFingerprintStore(
+            fileURL: supportDirectory.appending(path: "personal-sync-fingerprints.json")
+        )
+        self.fingerprints = fingerprints
         coordinator = SyncCoordinator(
             client: client,
             outbox: outbox,
             cursors: try SyncCursorStore(fileURL: supportDirectory.appending(path: "personal-sync-cursors.json")),
-            versions: versions
+            versions: versions,
+            fingerprints: fingerprints
         )
     }
 
@@ -72,6 +78,10 @@ public actor PersonalSyncRuntime {
         record: JSONValue? = nil,
         idempotencyKey: String? = nil
     ) async throws {
+        let fingerprint = syncFingerprint(operation: operation, record: record)
+        if await fingerprints.fingerprint(for: recordId, in: domain) == fingerprint {
+            return
+        }
         let resolvedBaseVersion: Int
         if let baseVersion {
             resolvedBaseVersion = baseVersion
@@ -87,6 +97,7 @@ public actor PersonalSyncRuntime {
             record: record
         )
         try await outbox.enqueue(OutboxEntry(domain: domain, mutation: mutation))
+        try await fingerprints.setFingerprint(fingerprint, for: recordId, in: domain)
     }
 
     /// Returns immediately with no changes while signed out. Network failures

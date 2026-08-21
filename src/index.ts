@@ -1,5 +1,5 @@
 import { authenticate, ensureUser } from "./auth";
-import { forwardCalorie, getCalorieToday } from "./calorie";
+import { forwardCalorie, getCalorieRecords, getCalorieToday } from "./calorie";
 import { HttpError, isDomain, parsePushRequest, requireInteger, requireString } from "./contracts";
 import {
   executeAction,
@@ -9,6 +9,10 @@ import {
   getToday,
   undoAction,
 } from "./domains";
+import { getLiveRecords, getLiveSummary } from "./live";
+import { authenticateMcp } from "./mcp-auth";
+import { handleMcp } from "./mcp";
+import { getDomainRecords, getLifeEvents, parseReadQuery } from "./reads";
 import { errorResponse, json, preflight, readJson, withCors } from "./http";
 import { pullChanges, pushMutations } from "./sync";
 
@@ -30,6 +34,12 @@ async function route(request: Request, env: Env): Promise<Response> {
     return json({ status: "ok", service: "personal-platform" });
   }
 
+  if (url.pathname === "/mcp") {
+    const user = await authenticateMcp(request, env);
+    await ensureUser(env, user);
+    return handleMcp(request, env, user);
+  }
+
   const user = await authenticate(request, env);
   await ensureUser(env, user);
 
@@ -46,18 +56,28 @@ async function route(request: Request, env: Env): Promise<Response> {
   }
 
   if (request.method === "GET" && url.pathname === "/v1/life/today") {
-    const today = await getToday(env, user.id);
+    const [today, live, calorie] = await Promise.all([
+      getToday(env, user.id),
+      getLiveSummary(request, env, user),
+      getCalorieToday(request, env, user),
+    ]);
     return json({
       ...today,
-      summaries: [...today.summaries, await getCalorieToday(request, env, user)],
+      summaries: [live, ...today.summaries, calorie],
     });
+  }
+
+  if (request.method === "GET" && url.pathname === "/v1/life/events") {
+    return json(await getLifeEvents(env, user.id, url));
   }
 
   if (request.method === "GET" && url.pathname === "/v1/activity") {
     return json({ actions: await getActivity(env, user.id) });
   }
 
-  const domainMatch = url.pathname.match(/^\/v1\/domains\/([^/]+)\/(summary|actions)(?:\/([^/]+))?$/);
+  const domainMatch = url.pathname.match(
+    /^\/v1\/domains\/([^/]+)\/(summary|records|actions)(?:\/([^/]+))?$/,
+  );
   if (domainMatch) {
     const domain = domainMatch[1];
     const resource = domainMatch[2];
@@ -66,14 +86,28 @@ async function route(request: Request, env: Env): Promise<Response> {
       if (resource === "summary" && request.method === "GET") {
         return forwardCalorie(request, env, user, "/v1/personal/summary");
       }
+      if (resource === "records" && request.method === "GET") {
+        return getCalorieRecords(request, env, user, url.searchParams);
+      }
       if (resource === "actions" && action && request.method === "POST") {
         return forwardCalorie(request, env, user, `/v1/personal/actions/${action}`);
       }
       throw new HttpError(404, "not_found", "Calorie endpoint was not found");
     }
     if (!isDomain(domain)) throw new HttpError(404, "unknown_domain", "domain was not found");
+    if (domain === "live") {
+      if (resource === "summary" && request.method === "GET") {
+        return json(await getLiveSummary(request, env, user));
+      }
+      if (resource === "records" && request.method === "GET") {
+        return getLiveRecords(request, env, user, url.searchParams);
+      }
+    }
     if (resource === "summary" && request.method === "GET") {
       return json(await getDomainSummary(env, user.id, domain));
+    }
+    if (resource === "records" && request.method === "GET") {
+      return json(await getDomainRecords(env, user.id, domain, parseReadQuery(url)));
     }
     if (resource === "actions" && !action && request.method === "GET") {
       return json({ domain, actions: getAvailableActions(domain) });

@@ -11,6 +11,9 @@ import {
   validateDomainRecord,
 } from "./contracts";
 import { ActionAudit, applyMutation, getRecord, tableForDomain } from "./sync";
+import { projectRecord } from "./reads";
+
+const PLATFORM_SUMMARY_DOMAINS = DOMAINS.filter((domain) => domain !== "live");
 
 const ACTIONS: Record<Domain, readonly string[]> = {
   live: ["add_item"],
@@ -78,7 +81,7 @@ export async function getDomainSummary(env: Env, userId: string, domain: Domain)
 }
 
 export async function getToday(env: Env, userId: string) {
-  const statements = DOMAINS.map((domain) => {
+  const statements = PLATFORM_SUMMARY_DOMAINS.map((domain) => {
     const table = tableForDomain(domain);
     return env.DB.prepare(
       `SELECT
@@ -95,7 +98,7 @@ export async function getToday(env: Env, userId: string) {
   return {
     generatedAt: new Date().toISOString(),
     source: "personal-platform",
-    summaries: DOMAINS.map((domain, index) =>
+    summaries: PLATFORM_SUMMARY_DOMAINS.map((domain, index) =>
       summaryFromRow(domain, rows[index]?.results[0] ?? null),
     ),
   };
@@ -333,10 +336,13 @@ function actionOccurredAt(domain: Domain, input: Record<string, unknown>): strin
 }
 
 function summaryFromRow(domain: Domain, row: SummaryRow | null) {
+  const latest = row?.latest_payload
+    ? projectRecord(domain, JSON.parse(row.latest_payload), false)
+    : null;
   return {
     domain,
     activeCount: row?.active_count ?? 0,
-    latest: row?.latest_payload ? JSON.parse(row.latest_payload) : null,
+    latest,
     lastUpdatedAt: row?.last_updated_at ?? null,
     source: "personal-platform",
     suggestedAction: SUGGESTIONS[domain],

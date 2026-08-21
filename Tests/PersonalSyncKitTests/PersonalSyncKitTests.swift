@@ -91,3 +91,20 @@ import Testing
     #expect(await reopened.version(for: "person-1", in: .kith) == 3)
     #expect(await reopened.version(for: "person-1", in: .journal) == 0)
 }
+
+@Test func fingerprintsAreStableAndPersistPerRecordAndDomain() async throws {
+    let first = JSONValue.object(["b": .number(2), "a": .string("one")])
+    let reordered = JSONValue.object(["a": .string("one"), "b": .number(2)])
+    #expect(syncFingerprint(operation: .upsert, record: first) == syncFingerprint(operation: .upsert, record: reordered))
+    #expect(syncFingerprint(operation: .delete, record: nil) != syncFingerprint(operation: .upsert, record: nil))
+
+    let directory = FileManager.default.temporaryDirectory
+        .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+    let file = directory.appending(path: "fingerprints.json")
+    let store = try SyncFingerprintStore(fileURL: file)
+    try await store.setFingerprint("abc", for: "entry-1", in: .journal)
+
+    let reopened = try SyncFingerprintStore(fileURL: file)
+    #expect(await reopened.fingerprint(for: "entry-1", in: .journal) == "abc")
+    #expect(await reopened.fingerprint(for: "entry-1", in: .kith) == nil)
+}

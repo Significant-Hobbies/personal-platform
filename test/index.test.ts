@@ -156,8 +156,15 @@ describe("Personal Platform Worker", () => {
     const today = await api("/v1/life/today");
     const todayJson = (await today.json()) as { summaries: Array<Record<string, unknown>> };
     expect(todayJson.summaries).toHaveLength(7);
-    const freshDomains = todayJson.summaries.filter((summary) => summary.domain !== "calorie");
+    const freshDomains = todayJson.summaries.filter(
+      (summary) => summary.domain !== "calorie" && summary.domain !== "live",
+    );
     expect(freshDomains.every((summary) => Number(summary.activeCount) >= 1)).toBe(true);
+    expect(todayJson.summaries[0]).toMatchObject({
+      domain: "live",
+      source: "significant-hobbies-service",
+      status: "unavailable",
+    });
     expect(todayJson.summaries.at(-1)).toMatchObject({
       domain: "calorie",
       source: "calorie-service",
@@ -278,6 +285,37 @@ describe("Personal Platform Worker", () => {
     expect(body.changes.some(
       (change) => change.record.morningReflection === "Begin quietly.",
     )).toBe(true);
+
+    const safe = await api("/v1/domains/journal/records?limit=10");
+    const safeBody = await safe.json<{
+      items: Array<{ record: Record<string, unknown> }>;
+    }>();
+    const safeRecord = safeBody.items.find((item) => item.record.sourceId === "entry-1")?.record;
+    expect(safeRecord).toEqual({
+      sourceId: "entry-1",
+      occurredOn: "2026-08-21T06:00:00.000Z",
+    });
+
+    const explicit = await api(
+      "/v1/domains/journal/records?q=clear&includeSensitive=true&limit=10",
+    );
+    const explicitBody = await explicit.json<{
+      items: Array<{ record: Record<string, unknown> }>;
+    }>();
+    expect(explicitBody.items.some((item) => item.record.body === "A clear day.")).toBe(true);
+  });
+
+  it("returns bounded privacy-safe life events", async () => {
+    const response = await api("/v1/life/events?domain=journal&limit=1");
+    expect(response.status).toBe(200);
+    const body = await response.json<{
+      items: Array<Record<string, unknown>>;
+      page: { limit: number; total: number };
+    }>();
+    expect(body.page.limit).toBe(1);
+    expect(body.page.total).toBeGreaterThanOrEqual(1);
+    expect(body.items[0]).toMatchObject({ domain: "journal", actor: "application" });
+    expect(JSON.stringify(body)).not.toContain("A clear day.");
   });
 
   it("converges a Setline session from an iPhone mutation into a second client", async () => {

@@ -46,6 +46,23 @@ public enum JSONValue: Codable, Equatable, Sendable {
     }
 }
 
+func syncFingerprint(operation: MutationOperation, record: JSONValue?) -> String {
+    struct FingerprintPayload: Encodable {
+        let operation: MutationOperation
+        let record: JSONValue?
+    }
+
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys]
+    let data = (try? encoder.encode(FingerprintPayload(operation: operation, record: record))) ?? Data()
+    var hash: UInt64 = 14_695_981_039_346_656_037
+    for byte in data {
+        hash ^= UInt64(byte)
+        hash &*= 1_099_511_628_211
+    }
+    return String(format: "%016llx", hash)
+}
+
 public struct SyncMutation: Codable, Equatable, Identifiable, Sendable {
     public let id: String
     public let idempotencyKey: String
