@@ -8,7 +8,7 @@
     "enabled": true
   },
   "vars": {
-    "AUTH_MODE": "disabled",
+    "AUTH_MODE": "production",
     "LOCAL_AUTH_TOKEN": "",
     "LOCAL_AUTH_USER_ID": "",
     "OWNER_TIMEZONE": "Asia/Kolkata",
@@ -18,8 +18,18 @@
     {
       "binding": "DB",
       "database_name": "personal-platform",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "61f421a2-f8c7-49c4-97f2-58a1f9b6feda",
       "migrations_dir": "migrations"
+    }
+  ],
+  "services": [
+    {
+      "binding": "AUTH_SERVICE",
+      "service": "significanthobbies"
+    },
+    {
+      "binding": "CALORIE_SERVICE",
+      "service": "calorie"
     }
   ]
 }
