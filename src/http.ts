@@ -1,13 +1,23 @@
 import { HttpError } from "./contracts";
 
 export async function readJson(request: Request): Promise<unknown> {
+  const maximumBytes = 1_000_000;
   const contentType = request.headers.get("Content-Type") ?? "";
   if (!contentType.toLowerCase().includes("application/json")) {
     throw new HttpError(415, "unsupported_media_type", "Content-Type must be application/json");
   }
+  const declaredLength = Number(request.headers.get("Content-Length") ?? "0");
+  if (Number.isFinite(declaredLength) && declaredLength > maximumBytes) {
+    throw new HttpError(413, "payload_too_large", "request body exceeds 1 MB");
+  }
   try {
-    return await request.json();
-  } catch {
+    const body = await request.text();
+    if (new TextEncoder().encode(body).byteLength > maximumBytes) {
+      throw new HttpError(413, "payload_too_large", "request body exceeds 1 MB");
+    }
+    return JSON.parse(body) as unknown;
+  } catch (error) {
+    if (error instanceof HttpError) throw error;
     throw new HttpError(400, "invalid_json", "request body is not valid JSON");
   }
 }

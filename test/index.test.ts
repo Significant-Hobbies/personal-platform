@@ -155,8 +155,14 @@ describe("Personal Platform Worker", () => {
 
     const today = await api("/v1/life/today");
     const todayJson = (await today.json()) as { summaries: Array<Record<string, unknown>> };
-    expect(todayJson.summaries).toHaveLength(6);
-    expect(todayJson.summaries.every((summary) => Number(summary.activeCount) >= 1)).toBe(true);
+    expect(todayJson.summaries).toHaveLength(7);
+    const freshDomains = todayJson.summaries.filter((summary) => summary.domain !== "calorie");
+    expect(freshDomains.every((summary) => Number(summary.activeCount) >= 1)).toBe(true);
+    expect(todayJson.summaries.at(-1)).toMatchObject({
+      domain: "calorie",
+      source: "calorie-service",
+      status: "unavailable",
+    });
 
     const activity = await api("/v1/activity");
     expect(((await activity.json()) as { actions: unknown[] }).actions.length).toBeGreaterThanOrEqual(6);
@@ -178,6 +184,25 @@ describe("Personal Platform Worker", () => {
       }),
     });
     const action = (await response.json()) as { actionId: string };
+
+    const actionRetry = await api("/v1/domains/kith/actions/record_interaction", {
+      method: "POST",
+      body: JSON.stringify({
+        idempotencyKey,
+        deviceId: "hub-test",
+        originalInstruction: "Record that I spoke to Rahul",
+        input: {
+          personId: "rahul",
+          personName: "Rahul",
+          occurredAt: "2026-08-21T10:00:00.000Z",
+        },
+      }),
+    });
+    expect(await actionRetry.json()).toMatchObject({
+      actionId: action.actionId,
+      status: "completed",
+      duplicate: true,
+    });
 
     const undo = await api(`/v1/actions/${action.actionId}/undo`, { method: "POST" });
     expect(await undo.json()).toMatchObject({ actionId: action.actionId, status: "undone" });

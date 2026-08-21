@@ -1,5 +1,5 @@
 import { authenticate, ensureUser } from "./auth";
-import { forwardCalorie } from "./calorie";
+import { forwardCalorie, getCalorieToday } from "./calorie";
 import { HttpError, isDomain, parsePushRequest, requireInteger, requireString } from "./contracts";
 import {
   executeAction,
@@ -46,7 +46,11 @@ async function route(request: Request, env: Env): Promise<Response> {
   }
 
   if (request.method === "GET" && url.pathname === "/v1/life/today") {
-    return json(await getToday(env, user.id));
+    const today = await getToday(env, user.id);
+    return json({
+      ...today,
+      summaries: [...today.summaries, await getCalorieToday(env, user)],
+    });
   }
 
   if (request.method === "GET" && url.pathname === "/v1/activity") {

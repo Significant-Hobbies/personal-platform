@@ -32,3 +32,32 @@ export async function forwardCalorie(
     body,
   });
 }
+
+export async function getCalorieToday(env: Env, user: AuthenticatedUser) {
+  const service = optionalFetcher(env, "CALORIE_SERVICE");
+  if (!service) return unavailableSummary("connector_not_configured");
+  try {
+    const response = await service.fetch(`${CALORIE_ORIGIN}/v1/personal/summary`, {
+      headers: { "X-Personal-User-Id": user.id, Accept: "application/json" },
+    });
+    if (!response.ok) return unavailableSummary(`upstream_${response.status}`);
+    return {
+      domain: "calorie",
+      source: "calorie-service",
+      status: "connected",
+      summary: await response.json(),
+    };
+  } catch {
+    return unavailableSummary("upstream_unreachable");
+  }
+}
+
+function unavailableSummary(reason: string) {
+  return {
+    domain: "calorie",
+    source: "calorie-service",
+    status: "unavailable",
+    reason,
+    lastUpdatedAt: null,
+  };
+}

@@ -97,7 +97,8 @@ export function optionalString(
 
 export function requireIsoDate(value: unknown, label: string): string {
   const date = requireString(value, label, 64);
-  if (Number.isNaN(Date.parse(date))) {
+  const isoDate = /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2}))?$/;
+  if (!isoDate.test(date) || Number.isNaN(Date.parse(date))) {
     throw new HttpError(400, "invalid_request", `${label} must be an ISO-8601 date`);
   }
   return date;

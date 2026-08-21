@@ -160,6 +160,23 @@ export async function executeAction(
     await recordFailedAction(env, userId, domain, action, request, actionId, idempotencyKey);
     throw new HttpError(409, "conflict", "the action targeted an existing record", applied.result);
   }
+  if (applied.result.status === "duplicate") {
+    const acceptedAction = await findAction(env, userId, idempotencyKey);
+    if (!acceptedAction) {
+      throw new HttpError(
+        409,
+        "idempotency_key_reused",
+        "the idempotency key belongs to a non-action mutation",
+      );
+    }
+    return {
+      actionId: acceptedAction.id,
+      status: acceptedAction.status,
+      completedAt: acceptedAction.completed_at,
+      duplicate: true,
+      change: applied.result,
+    };
+  }
   return {
     actionId,
     status: "completed",
