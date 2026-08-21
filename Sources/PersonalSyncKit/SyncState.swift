@@ -14,7 +14,12 @@ public actor MutationOutbox {
     }
 
     public func enqueue(_ entry: OutboxEntry) throws {
-        if !entries.contains(where: { $0.id == entry.id }) {
+        if let index = entries.firstIndex(where: {
+            $0.domain == entry.domain && $0.mutation.id == entry.mutation.id
+        }) {
+            entries[index] = entry
+            try persist()
+        } else {
             entries.append(entry)
             try persist()
         }
@@ -35,6 +40,41 @@ public actor MutationOutbox {
             withIntermediateDirectories: true
         )
         try JSONEncoder().encode(entries).write(to: fileURL, options: .atomic)
+    }
+}
+
+public actor SyncVersionStore {
+    private let fileURL: URL
+    private var versions: [PersonalDomain: [String: Int]]
+
+    public init(fileURL: URL) throws {
+        self.fileURL = fileURL
+        if FileManager.default.fileExists(atPath: fileURL.path) {
+            versions = try JSONDecoder().decode(
+                [PersonalDomain: [String: Int]].self,
+                from: Data(contentsOf: fileURL)
+            )
+        } else {
+            versions = [:]
+        }
+    }
+
+    public func version(for recordId: String, in domain: PersonalDomain) -> Int {
+        versions[domain]?[recordId] ?? 0
+    }
+
+    public func setVersion(_ version: Int, for recordId: String, in domain: PersonalDomain) throws {
+        guard version >= 0 else { return }
+        versions[domain, default: [:]][recordId] = version
+        try persist()
+    }
+
+    private func persist() throws {
+        try FileManager.default.createDirectory(
+            at: fileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try JSONEncoder().encode(versions).write(to: fileURL, options: .atomic)
     }
 }
 
@@ -72,15 +112,18 @@ public actor SyncCoordinator {
     private let client: PersonalSyncClient
     private let outbox: MutationOutbox
     private let cursors: SyncCursorStore
+    private let versions: SyncVersionStore
 
     public init(
         client: PersonalSyncClient,
         outbox: MutationOutbox,
-        cursors: SyncCursorStore
+        cursors: SyncCursorStore,
+        versions: SyncVersionStore
     ) {
         self.client = client
         self.outbox = outbox
         self.cursors = cursors
+        self.versions = versions
     }
 
     public func synchronize(
@@ -101,6 +144,13 @@ public actor SyncCoordinator {
                     .filter { $0.status == "accepted" || $0.status == "duplicate" }
                     .map(\.idempotencyKey)
             )
+            for result in pushed.results {
+                if let version = result.version {
+                    try await versions.setVersion(version, for: result.id, in: domain)
+                } else if let actualVersion = result.actualVersion {
+                    try await versions.setVersion(actualVersion, for: result.id, in: domain)
+                }
+            }
             try await outbox.acknowledge(idempotencyKeys: acknowledged)
         }
 
@@ -114,6 +164,9 @@ public actor SyncCoordinator {
                 bearerToken: bearerToken
             )
             allChanges.append(contentsOf: page.changes)
+            for change in page.changes {
+                try await versions.setVersion(change.version, for: change.id, in: domain)
+            }
             nextCursor = page.cursor
             if !page.hasMore { break }
         } while true

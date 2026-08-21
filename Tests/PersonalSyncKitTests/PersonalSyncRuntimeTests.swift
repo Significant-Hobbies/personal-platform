@@ -8,7 +8,7 @@ private actor RuntimeTokenStore: PersonalBearerTokenStore {
     func delete() {}
 }
 
-@Test func runtimeQueuesStableIdempotencyKeysWhileSignedOut() async throws {
+@Test func runtimeCompactsRepeatedOfflineEditsWhileSignedOut() async throws {
     let directory = FileManager.default.temporaryDirectory
         .appending(path: UUID().uuidString, directoryHint: .isDirectory)
     let tokenStore = RuntimeTokenStore()
@@ -29,11 +29,19 @@ private actor RuntimeTokenStore: PersonalBearerTokenStore {
         occurredAt: "2026-08-21T06:00:00.000Z",
         record: JSONValue.object(["personId": JSONValue.string("person-1")])
     )
+    try await runtime.enqueue(
+        recordId: "entry-1",
+        occurredAt: "2026-08-21T06:01:00.000Z",
+        record: JSONValue.object(["personId": JSONValue.string("person-2")])
+    )
 
     #expect(try await runtime.synchronize().isEmpty)
     let stored = try JSONDecoder().decode(
         [OutboxEntry].self,
         from: Data(contentsOf: directory.appending(path: "personal-sync-outbox.json"))
     )
-    #expect(stored.map(\.mutation.idempotencyKey) == ["kith:entry-1:v1"])
+    #expect(stored.count == 1)
+    #expect(stored.first?.mutation.baseVersion == 0)
+    #expect(stored.first?.mutation.record == .object(["personId": .string("person-2")]))
+    #expect(stored.first?.mutation.idempotencyKey.isEmpty == false)
 }

@@ -37,6 +37,7 @@ public actor PersonalSyncRuntime {
     private let deviceId: String
     private let identity: PersonalIdentityClient
     private let outbox: MutationOutbox
+    private let versions: SyncVersionStore
     private let coordinator: SyncCoordinator
 
     public init(
@@ -51,26 +52,37 @@ public actor PersonalSyncRuntime {
         self.identity = identity
         let outbox = try MutationOutbox(fileURL: supportDirectory.appending(path: "personal-sync-outbox.json"))
         self.outbox = outbox
+        let versions = try SyncVersionStore(
+            fileURL: supportDirectory.appending(path: "personal-sync-versions.json")
+        )
+        self.versions = versions
         coordinator = SyncCoordinator(
             client: client,
             outbox: outbox,
-            cursors: try SyncCursorStore(fileURL: supportDirectory.appending(path: "personal-sync-cursors.json"))
+            cursors: try SyncCursorStore(fileURL: supportDirectory.appending(path: "personal-sync-cursors.json")),
+            versions: versions
         )
     }
 
     public func enqueue(
         recordId: String,
         operation: MutationOperation = .upsert,
-        baseVersion: Int = 0,
+        baseVersion: Int? = nil,
         occurredAt: String,
         record: JSONValue? = nil,
         idempotencyKey: String? = nil
     ) async throws {
+        let resolvedBaseVersion: Int
+        if let baseVersion {
+            resolvedBaseVersion = baseVersion
+        } else {
+            resolvedBaseVersion = await versions.version(for: recordId, in: domain)
+        }
         let mutation = SyncMutation(
             id: recordId,
-            idempotencyKey: idempotencyKey ?? "\(domain.rawValue):\(recordId):v\(baseVersion + 1)",
+            idempotencyKey: idempotencyKey ?? UUID().uuidString.lowercased(),
             operation: operation,
-            baseVersion: baseVersion,
+            baseVersion: resolvedBaseVersion,
             occurredAt: occurredAt,
             record: record
         )
