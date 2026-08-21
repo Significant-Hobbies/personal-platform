@@ -1,5 +1,6 @@
 #if canImport(AuthenticationServices) && (os(iOS) || os(macOS))
 import AuthenticationServices
+import CryptoKit
 import Foundation
 import Observation
 #if os(iOS)
@@ -10,7 +11,7 @@ import AppKit
 
 @MainActor
 @Observable
-public final class PersonalWebSignInModel: NSObject,
+public final class PersonalAccountModel: NSObject,
     ASWebAuthenticationPresentationContextProviding
 {
     public private(set) var session: PersonalIdentitySession?
@@ -21,6 +22,7 @@ public final class PersonalWebSignInModel: NSObject,
     private let callbackScheme: String
     private let identityURL: URL
     private var webSession: ASWebAuthenticationSession?
+    private var rawAppleNonce: String?
 
     public init(
         identity: PersonalIdentityClient,
@@ -46,7 +48,7 @@ public final class PersonalWebSignInModel: NSObject,
         }
     }
 
-    public func connect() async {
+    public func connectWithGoogle() async {
         guard !isConnecting else { return }
         isConnecting = true
         defer { isConnecting = false }
@@ -57,6 +59,50 @@ public final class PersonalWebSignInModel: NSObject,
             errorMessage = nil
         } catch let error as ASWebAuthenticationSessionError
             where error.code == .canceledLogin {
+            errorMessage = nil
+        } catch {
+            session = nil
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    public func connect() async {
+        await connectWithGoogle()
+    }
+
+    public func prepareApple(_ request: ASAuthorizationAppleIDRequest) {
+        let nonce = UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
+        rawAppleNonce = nonce
+        request.requestedScopes = [.email, .fullName]
+        request.nonce = Self.sha256(nonce)
+    }
+
+    public func completeApple(_ result: Result<ASAuthorization, Error>) async {
+        isConnecting = true
+        defer {
+            isConnecting = false
+            rawAppleNonce = nil
+        }
+        do {
+            let authorization = try result.get()
+            guard
+                let apple = authorization.credential as? ASAuthorizationAppleIDCredential,
+                let identityToken = apple.identityToken.flatMap({ String(data: $0, encoding: .utf8) }),
+                let nonce = rawAppleNonce
+            else {
+                throw PersonalIdentityError.invalidResponse
+            }
+            session = try await identity.signInWithApple(
+                PersonalAppleCredential(
+                    identityToken: identityToken,
+                    nonce: nonce,
+                    email: apple.email,
+                    firstName: apple.fullName?.givenName,
+                    lastName: apple.fullName?.familyName
+                )
+            )
+            errorMessage = nil
+        } catch let error as ASAuthorizationError where error.code == .canceled {
             errorMessage = nil
         } catch {
             session = nil
@@ -131,7 +177,14 @@ public final class PersonalWebSignInModel: NSObject,
         else { throw PersonalIdentityError.invalidResponse }
         return token
     }
+
+    private static func sha256(_ value: String) -> String {
+        SHA256.hash(data: Data(value.utf8)).map { String(format: "%02x", $0) }.joined()
+    }
 }
+
+@available(*, deprecated, renamed: "PersonalAccountModel")
+public typealias PersonalWebSignInModel = PersonalAccountModel
 
 private struct HandoffRequest: Encodable { let code: String }
 private struct HandoffResponse: Decodable { let token: String }

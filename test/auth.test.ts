@@ -27,11 +27,7 @@ describe("production authentication connector", () => {
         }),
         env,
       ),
-    ).resolves.toEqual({
-      id: "shared-user",
-      appleSubject: "apple-subject",
-      email: "owner@example.com",
-    });
+    ).resolves.toEqual({ id: "shared-user" });
     expect(forwarded?.url).toBe(
       "https://personal-auth.internal/api/personal-platform/session",
     );

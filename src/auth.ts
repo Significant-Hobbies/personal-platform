@@ -40,24 +40,17 @@ export async function authenticate(request: Request, env: Env): Promise<Authenti
   if (typeof body.userId !== "string" || body.userId.length === 0) {
     throw new HttpError(502, "invalid_auth_response", "auth service returned no user ID");
   }
-  return {
-    id: body.userId,
-    appleSubject: typeof body.appleSubject === "string" ? body.appleSubject : undefined,
-    email: typeof body.email === "string" ? body.email : undefined,
-  };
+  return { id: body.userId };
 }
 
 export async function ensureUser(env: Env, user: AuthenticatedUser): Promise<void> {
   const now = new Date().toISOString();
   await env.DB.prepare(
-    `INSERT INTO users (id, apple_subject, email, created_at, updated_at)
-     VALUES (?1, ?2, ?3, ?4, ?4)
-     ON CONFLICT(id) DO UPDATE SET
-       apple_subject = COALESCE(excluded.apple_subject, users.apple_subject),
-       email = COALESCE(excluded.email, users.email),
-       updated_at = excluded.updated_at`,
+    `INSERT INTO users (id, created_at, updated_at)
+     VALUES (?1, ?2, ?2)
+     ON CONFLICT(id) DO UPDATE SET updated_at = excluded.updated_at`,
   )
-    .bind(user.id, user.appleSubject ?? null, user.email ?? null, now)
+    .bind(user.id, now)
     .run();
 }
 

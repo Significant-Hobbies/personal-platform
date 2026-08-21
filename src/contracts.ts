@@ -45,8 +45,6 @@ export type PushResult = AppliedChange | ConflictChange;
 
 export interface AuthenticatedUser {
   id: string;
-  appleSubject?: string;
-  email?: string;
 }
 
 export class HttpError extends Error {
