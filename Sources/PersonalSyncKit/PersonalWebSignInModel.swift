@@ -54,8 +54,7 @@ public final class PersonalAccountModel: NSObject,
         defer { isConnecting = false }
         do {
             let code = try await authenticateInBrowser()
-            let token = try await exchange(code: code)
-            session = try await identity.adoptBearerToken(token)
+            session = try await identity.exchangeBrowserHandoff(code)
             errorMessage = nil
         } catch let error as ASWebAuthenticationSessionError
             where error.code == .canceledLogin {
@@ -167,20 +166,6 @@ public final class PersonalAccountModel: NSObject,
         }
     }
 
-    private func exchange(code: String) async throws -> String {
-        var request = URLRequest(url: identityURL.appending(path: "api/native/auth/exchange"))
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(HandoffRequest(code: code))
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse,
-              (200..<300).contains(http.statusCode),
-              let token = try? JSONDecoder().decode(HandoffResponse.self, from: data).token,
-              !token.isEmpty
-        else { throw PersonalIdentityError.invalidResponse }
-        return token
-    }
-
     private static func sha256(_ value: String) -> String {
         SHA256.hash(data: Data(value.utf8)).map { String(format: "%02x", $0) }.joined()
     }
@@ -189,6 +174,4 @@ public final class PersonalAccountModel: NSObject,
 @available(*, deprecated, renamed: "PersonalAccountModel")
 public typealias PersonalWebSignInModel = PersonalAccountModel
 
-private struct HandoffRequest: Encodable { let code: String }
-private struct HandoffResponse: Decodable { let token: String }
 #endif

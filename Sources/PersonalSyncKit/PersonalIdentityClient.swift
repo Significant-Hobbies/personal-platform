@@ -196,6 +196,19 @@ public actor PersonalIdentityClient {
         }
     }
 
+    /// Exchanges the one-use code returned by the native browser handoff and
+    /// persists the resulting Significant Hobbies bearer session.
+    public func exchangeBrowserHandoff(_ code: String) async throws -> PersonalIdentitySession {
+        guard !code.isEmpty else { throw PersonalIdentityError.invalidResponse }
+        var request = URLRequest(url: endpoint("api/native/auth/exchange"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try encoder.encode(HandoffRequest(code: code))
+        let (data, _) = try await send(request)
+        let response = try decoder.decode(HandoffResponse.self, from: data)
+        return try await adoptBearerToken(response.token)
+    }
+
     public func signOut() async {
         if let token = try? await tokenStore.load() {
             var request = URLRequest(url: endpoint("api/auth/sign-out"))
@@ -243,6 +256,9 @@ private struct AppleSignInRequest: Encodable {
         idToken = AppleIDToken(credential: credential)
     }
 }
+
+private struct HandoffRequest: Encodable { let code: String }
+private struct HandoffResponse: Decodable { let token: String }
 
 private struct AppleIDToken: Encodable {
     let token: String

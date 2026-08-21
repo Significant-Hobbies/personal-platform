@@ -122,6 +122,13 @@ struct PersonalIdentityClientTests {
     @Test
     func nativeBrowserHandoffIsValidatedAndPersisted() async throws {
         IdentityURLProtocol.handler = { request in
+            if request.url?.path == "/api/native/auth/exchange" {
+                #expect(request.httpMethod == "POST")
+                return (
+                    try response(request, status: 200),
+                    Data(#"{"token":"handoff-token"}"#.utf8)
+                )
+            }
             #expect(request.url?.path == "/api/personal-platform/session")
             #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer handoff-token")
             return (
@@ -136,7 +143,7 @@ struct PersonalIdentityClientTests {
             tokenStore: store
         )
 
-        let identity = try await client.adoptBearerToken("handoff-token")
+        let identity = try await client.exchangeBrowserHandoff("one-use-code")
 
         #expect(identity.userId == "shared-user")
         #expect(await store.load() == "handoff-token")
