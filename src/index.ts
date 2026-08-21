@@ -49,7 +49,7 @@ async function route(request: Request, env: Env): Promise<Response> {
     const today = await getToday(env, user.id);
     return json({
       ...today,
-      summaries: [...today.summaries, await getCalorieToday(env, user)],
+      summaries: [...today.summaries, await getCalorieToday(request, env, user)],
     });
   }
 

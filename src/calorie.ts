@@ -18,6 +18,8 @@ export async function forwardCalorie(
     );
   }
   const headers = new Headers();
+  const authorization = request.headers.get("Authorization");
+  if (authorization) headers.set("Authorization", authorization);
   headers.set("X-Personal-User-Id", user.id);
   headers.set("Accept", "application/json");
   const contentType = request.headers.get("Content-Type");
@@ -33,12 +35,30 @@ export async function forwardCalorie(
   });
 }
 
-export async function getCalorieToday(env: Env, user: AuthenticatedUser) {
+export async function getCalorieToday(
+  request: Request,
+  env: Env,
+  user: AuthenticatedUser,
+) {
   const service = optionalFetcher(env, "CALORIE_SERVICE");
   if (!service) return unavailableSummary("connector_not_configured");
   try {
-    const response = await service.fetch(`${CALORIE_ORIGIN}/v1/personal/summary`, {
-      headers: { "X-Personal-User-Id": user.id, Accept: "application/json" },
+    const timezone = String(env.OWNER_TIMEZONE || "UTC");
+    const date = new Intl.DateTimeFormat("en-CA", {
+      timeZone: timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(Date.now());
+    const url = new URL(`${CALORIE_ORIGIN}/v1/personal/summary`);
+    url.searchParams.set("date", date);
+    url.searchParams.set("timezone", timezone);
+    const response = await service.fetch(url, {
+      headers: {
+        Authorization: request.headers.get("Authorization") ?? "",
+        "X-Personal-User-Id": user.id,
+        Accept: "application/json",
+      },
     });
     if (!response.ok) return unavailableSummary(`upstream_${response.status}`);
     return {

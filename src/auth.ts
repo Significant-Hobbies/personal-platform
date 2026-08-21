@@ -1,6 +1,6 @@
 import { AuthenticatedUser, HttpError } from "./contracts";
 
-const AUTH_SERVICE_URL = "https://personal-auth.internal/v1/session";
+const AUTH_SERVICE_URL = "https://personal-auth.internal/api/personal-platform/session";
 
 export async function authenticate(request: Request, env: Env): Promise<AuthenticatedUser> {
   const authorization = request.headers.get("Authorization");
@@ -30,8 +30,11 @@ export async function authenticate(request: Request, env: Env): Promise<Authenti
   const response = await authService.fetch(AUTH_SERVICE_URL, {
     headers: { Authorization: authorization },
   });
-  if (!response.ok) {
+  if (response.status === 401) {
     throw new HttpError(401, "unauthorized", "the bearer token is invalid");
+  }
+  if (!response.ok) {
+    throw new HttpError(502, "auth_service_unavailable", "auth service could not verify the token");
   }
   const body = (await response.json()) as Record<string, unknown>;
   if (typeof body.userId !== "string" || body.userId.length === 0) {

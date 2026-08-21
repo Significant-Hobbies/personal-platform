@@ -11,6 +11,7 @@
     "AUTH_MODE": "disabled",
     "LOCAL_AUTH_TOKEN": "",
     "LOCAL_AUTH_USER_ID": "",
+    "OWNER_TIMEZONE": "Asia/Kolkata",
     "ALLOWED_ORIGINS": "https://sh.com,https://significanthobbies.com"
   },
   "d1_databases": [

@@ -25,6 +25,6 @@ describe("Calorie connector", () => {
     expect(response.status).toBe(200);
     expect(forwarded?.url).toBe("https://calorie.internal/v1/personal/summary");
     expect(forwarded?.headers.get("X-Personal-User-Id")).toBe("user-123");
-    expect(forwarded?.headers.get("Authorization")).toBeNull();
+    expect(forwarded?.headers.get("Authorization")).toBe("Bearer private-client-token");
   });
 });
