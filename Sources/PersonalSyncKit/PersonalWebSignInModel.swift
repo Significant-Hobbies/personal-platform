@@ -92,15 +92,18 @@ public final class PersonalAccountModel: NSObject,
             else {
                 throw PersonalIdentityError.invalidResponse
             }
-            session = try await identity.signInWithApple(
-                PersonalAppleCredential(
-                    identityToken: identityToken,
-                    nonce: nonce,
-                    email: apple.email,
-                    firstName: apple.fullName?.givenName,
-                    lastName: apple.fullName?.familyName
-                )
+            let credential = PersonalAppleCredential(
+                identityToken: identityToken,
+                nonce: nonce,
+                email: apple.email,
+                firstName: apple.fullName?.givenName,
+                lastName: apple.fullName?.familyName
             )
+            session = if session == nil {
+                try await identity.signInWithApple(credential)
+            } else {
+                try await identity.linkApple(credential)
+            }
             errorMessage = nil
         } catch let error as ASAuthorizationError where error.code == .canceled {
             errorMessage = nil

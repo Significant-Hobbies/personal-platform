@@ -151,6 +151,21 @@ public actor PersonalIdentityClient {
         return try await identitySession(bearerToken: token)
     }
 
+    public func linkApple(_ credential: PersonalAppleCredential) async throws
+        -> PersonalIdentitySession
+    {
+        guard let token = try await tokenStore.load() else {
+            throw PersonalIdentityError.missingSession
+        }
+        var request = URLRequest(url: endpoint("api/auth/link-social"))
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try encoder.encode(AppleSignInRequest(credential: credential))
+        _ = try await send(request)
+        return try await identitySession(bearerToken: token)
+    }
+
     public func restoreSession() async throws -> PersonalIdentitySession? {
         guard let token = try await tokenStore.load() else { return nil }
         do {

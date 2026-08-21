@@ -87,6 +87,39 @@ struct PersonalIdentityClientTests {
     }
 
     @Test
+    func appleLinkKeepsTheExistingBearerIdentity() async throws {
+        let store = MemoryBearerStore()
+        await store.save("existing-bearer")
+        IdentityURLProtocol.handler = { request in
+            if request.url?.path == "/api/auth/link-social" {
+                #expect(request.httpMethod == "POST")
+                #expect(
+                    request.value(forHTTPHeaderField: "Authorization")
+                        == "Bearer existing-bearer"
+                )
+                return (try response(request, status: 200), Data("{}".utf8))
+            }
+            #expect(request.url?.path == "/api/personal-platform/session")
+            return (
+                try response(request, status: 200),
+                Data(#"{"userId":"shared-user","email":"owner@example.com","appleSubject":"apple-subject"}"#.utf8)
+            )
+        }
+        let client = PersonalIdentityClient(
+            baseURL: try #require(URL(string: "https://identity.test")),
+            session: testSession(),
+            tokenStore: store
+        )
+
+        let identity = try await client.linkApple(
+            PersonalAppleCredential(identityToken: "apple-jwt", nonce: "nonce")
+        )
+
+        #expect(identity.appleSubject == "apple-subject")
+        #expect(await store.load() == "existing-bearer")
+    }
+
+    @Test
     func nativeBrowserHandoffIsValidatedAndPersisted() async throws {
         IdentityURLProtocol.handler = { request in
             #expect(request.url?.path == "/api/personal-platform/session")
