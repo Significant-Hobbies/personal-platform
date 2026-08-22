@@ -1,5 +1,7 @@
 import { exports } from "cloudflare:workers";
+import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
+import worker from "../src/index";
 
 const AUTHORIZATION = "Bearer test-token";
 
@@ -26,6 +28,39 @@ function mutationBody(overrides: Record<string, unknown> = {}) {
     ],
     ...overrides,
   };
+}
+
+function connectedEnvironment(): Env {
+  return {
+    ...env,
+    AUTH_SERVICE: {
+      fetch: async () => Response.json({
+        domain: "live",
+        source: "significant-hobbies-service",
+        status: "connected",
+        activeCount: 1,
+        lastUpdatedAt: "2026-08-21T10:00:00.000Z",
+        latest: { title: "See the northern lights", status: "planned" },
+      }),
+    },
+    CALORIE_SERVICE: {
+      fetch: async () => Response.json({
+        entryCount: 1,
+        totals: { calories: 640, proteinG: 42 },
+        lastUpdatedAt: "2026-08-21T10:05:00.000Z",
+      }),
+    },
+  } as unknown as Env;
+}
+
+function connectedApi(path: string, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers);
+  headers.set("Authorization", AUTHORIZATION);
+  if (init.body) headers.set("Content-Type", "application/json");
+  return worker.fetch(
+    new Request(`https://personal-platform.test${path}`, { ...init, headers }),
+    connectedEnvironment(),
+  );
 }
 
 describe("Personal Platform Worker", () => {
@@ -173,6 +208,86 @@ describe("Personal Platform Worker", () => {
 
     const activity = await api("/v1/activity");
     expect(((await activity.json()) as { actions: unknown[] }).actions.length).toBeGreaterThanOrEqual(6);
+  });
+
+  it("projects source-app writes from all seven connected domains into Today", async () => {
+    const records = [
+      ["journal", { body: "A clear day.", occurredOn: "2026-08-21" }],
+      [
+        "habits",
+        { habitId: "walk", name: "Walk", occurredOn: "2026-08-21", status: "completed" },
+      ],
+      ["setline", { title: "Strength", occurredOn: "2026-08-21", minutes: 40 }],
+      [
+        "kith",
+        {
+          recordType: "interaction",
+          personId: "rahul",
+          personName: "Rahul",
+          kind: "call",
+          occurredAt: "2026-08-21T08:00:00.000Z",
+        },
+      ],
+      [
+        "anchor",
+        {
+          title: "Write",
+          startedAt: "2026-08-21T09:00:00.000Z",
+          endedAt: "2026-08-21T09:30:00.000Z",
+          durationSeconds: 1800,
+          interruptionCount: 1,
+        },
+      ],
+    ] as const;
+
+    for (const [domain, record] of records) {
+      const response = await connectedApi("/v1/sync/push", {
+        method: "POST",
+        body: JSON.stringify({
+          domain,
+          deviceId: `${domain}-native-test`,
+          mutations: [{
+            id: crypto.randomUUID(),
+            idempotencyKey: crypto.randomUUID(),
+            operation: "upsert",
+            baseVersion: 0,
+            occurredAt: "2026-08-21T10:00:00.000Z",
+            record,
+          }],
+        }),
+      });
+      expect(response.status, domain).toBe(200);
+      expect(await response.json()).toMatchObject({ results: [{ status: "accepted" }] });
+    }
+
+    const response = await connectedApi("/v1/life/today");
+    expect(response.status).toBe(200);
+    const body = await response.json<{
+      summaries: Array<{
+        domain: string;
+        source: string;
+        status?: string;
+        activeCount?: number;
+        summary?: { entryCount?: number };
+      }>;
+    }>();
+
+    expect(body.summaries.map((summary) => summary.domain)).toEqual([
+      "live",
+      "journal",
+      "habits",
+      "setline",
+      "kith",
+      "anchor",
+      "calorie",
+    ]);
+    expect(body.summaries.every((summary) => summary.status !== "unavailable")).toBe(true);
+    expect(
+      body.summaries.filter(
+        (summary) => typeof summary.activeCount === "number" && summary.activeCount >= 1,
+      ),
+    ).toHaveLength(6);
+    expect(body.summaries.at(-1)?.summary?.entryCount).toBe(1);
   });
 
   it("undoes an additive assistant action once", async () => {

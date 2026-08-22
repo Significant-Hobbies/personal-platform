@@ -1,9 +1,10 @@
 # Personal Platform
 
-Cloudflare synchronization and semantic APIs for Live, Journal, Habits,
-Setline, Kith, and Anchor. Hub consumes these APIs but owns no domain data.
-Calorie remains authoritative in its existing Worker and D1 and is accessed
-only through a service connector.
+Cloudflare synchronization and semantic APIs for Journal, Habits, Setline,
+Kith, and Anchor. Hub consumes these APIs read-only and owns no domain data.
+Live remains authoritative in Significant Hobbies D1 and Calorie remains
+authoritative in its existing Worker and D1; both are accessed only through
+typed service connectors.
 
 ## Local development
 

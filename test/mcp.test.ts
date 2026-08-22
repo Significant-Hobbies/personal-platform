@@ -70,6 +70,35 @@ describe("Personal Apps MCP", () => {
     expect(JSON.stringify(body)).toContain("mcp-journal-entry");
     expect(JSON.stringify(body)).not.toContain("Private full writing");
   });
+
+  it("returns the complete seven-domain Today projection through MCP", async () => {
+    const response = await mcp("tools/call", {
+      name: "life_get_today",
+      arguments: {},
+    });
+    const body = await response.json<{
+      result: {
+        isError: boolean;
+        structuredContent: {
+          summaries: Array<{ domain: string; source: string }>;
+        };
+      };
+    }>();
+
+    expect(body.result.isError).toBe(false);
+    expect(body.result.structuredContent.summaries.map((summary) => summary.domain)).toEqual([
+      "live",
+      "journal",
+      "habits",
+      "setline",
+      "kith",
+      "anchor",
+      "calorie",
+    ]);
+    expect(
+      body.result.structuredContent.summaries.every((summary) => Boolean(summary.source)),
+    ).toBe(true);
+  });
 });
 
 describe("Personal Apps OAuth verifier", () => {

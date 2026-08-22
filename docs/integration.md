@@ -7,8 +7,8 @@ does not replace any app's local store or domain service.
 
 | Product | Immediate local store | Signed-in authority | Platform path |
 | --- | --- | --- | --- |
-| Hub | Read cache only | None | Reads summaries and invokes semantic actions |
-| Live | Existing browser/native store | Personal Platform D1 | `live` adapter |
+| Hub | Read cache only | None | Reads summaries and recent activity |
+| Live | Existing browser/native store | Significant Hobbies D1 | Typed Significant Hobbies service connector |
 | Journal | Existing browser/native store | Personal Platform D1 | `journal` adapter |
 | Habits | SwiftData | Personal Platform D1 | `habits` adapter |
 | Setline | Local JSON | Personal Platform D1 | `setline` adapter |
@@ -54,9 +54,10 @@ universal personal entity.
 
 ## Hub
 
-Hub calls `GET /v1/life/today` for its dashboard, individual summary endpoints
-for detail, semantic action endpoints for simple writes, and `GET /v1/activity`
-for provenance and undo. Hub owns no canonical domain table.
+Hub calls `GET /v1/life/today` for its dashboard, bounded record endpoints for
+detail, and `GET /v1/life/events` for recent sync provenance. Hub is read-only
+and owns no canonical domain table. Source applications remain the write
+surfaces.
 
 ## Calorie
 
